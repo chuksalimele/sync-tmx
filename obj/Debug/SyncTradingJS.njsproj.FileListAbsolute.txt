@@ -1,0 +1,6 @@
+C:\Users\USER\source\repos\SyncTradingJS\obj\Debug\SyncTradingJS.njsproj.CoreCompileInputs.cache
+C:\Users\USER\source\repos\SyncTradingJS\bin\Microsoft.NodejsTools.WebRole.dll
+C:\Users\USER\source\repos\SyncTradingJS\obj\Debug\SyncTradingJS.njsprojAssemblyReference.cache
+C:\sync-trading-manager\obj\Debug\SyncTradingJS.njsproj.AssemblyReference.cache
+C:\sync-trading-manager\obj\Debug\SyncTradingJS.njsproj.CoreCompileInputs.cache
+C:\sync-trading-manager\bin\Microsoft.NodejsTools.WebRole.dll
