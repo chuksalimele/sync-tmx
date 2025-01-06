@@ -32,7 +32,7 @@
 #include <Controls/ListView.mqh>
 #include <Controls/Edit.mqh>
 
-#define VERSION "13.0.0"
+#define VERSION "15.0.0"
 
 #define COPIED_TRADE_MAGIC_NUMBER 114455
 
@@ -69,43 +69,56 @@ void GetSyncLastErrorDesc(char& error[], int len);
 //| Class definition for a Printer       |
 //+------------------------------------------------------------------+
 class Printer {
-   private:
-      string _once_data;
-      string _start_id;
-      string _end_id;
+private:
+   string _once_data;
+   string _start_id;
+   string _end_id;
+   bool   debug_mode;
 public:
-   Printer(){};
-   ~Printer(){};
-   
-   void init(){
+   Printer() {init(false);};
+   Printer(bool debug) {init(debug);};
+   ~Printer() {};
+
+   void init(bool debug) {
       _once_data = "";
       _start_id = "";
       _end_id = "";
+      debug_mode= debug;
    };
-   void printOnce(string data){
-      if(_once_data != data){
+   
+   void setDebugMode(bool mode){
+      debug_mode = mode;
+   }
+   void printOnce(string data) {
+      if(_once_data != data) {
          Print(data);
          _once_data = data;
       }
    };
-   void print(string data){
-      if(_start_id != _end_id){
+   void print(string data) {
+      if(_start_id != _end_id) {
          Print(data);
       }
    };
+   void debug(string data) {
+         if(debug_mode){
+            Print("[DEBUG] "+data);
+         }
+      
+   };   
 
-   void start(string start_id){
+   void start(string start_id) {
       _start_id = start_id;
    };
-   void end(string end_id){
+   void end(string end_id) {
       _end_id = end_id;
-   }; 
-   void start(int start_id){
+   };
+   void start(int start_id) {
       _start_id = IntegerToString(start_id);
    };
-   void end(int end_id){
+   void end(int end_id) {
       _end_id = IntegerToString(end_id);
-   };        
+   };
 };
 
 int ExtConnection=-1;
@@ -142,6 +155,7 @@ public:
    ~VirtualSync(void) {};
 };
 
+input bool DebugMode = false;//Debug Mode
 
 bool SyncCopyManualEntry = false;// Sync copy manual entry
 ExitClearanceFactor exitClearanceFactor = _30_PERCENT;// Exit clearance factor
@@ -179,6 +193,7 @@ struct TradePacket {
    ulong             peer_ticket;
    double            peer_stoploss;
    double            peer_spread_point;
+   int               peer_total_orders_open;
 
    string            symbol;
    ulong             ticket;
@@ -212,6 +227,7 @@ struct ChangeStats {
 
 string Host = "localhost";
 int Port = 4000;
+string RegisterPeerTicketsFileName = "RegisterPeerTickets.rpt";
 double EXIT_CLEARANCE_FACTOR = 0.3;
 MarketPrice prices [47];
 string PRICE_PIPE_PATH = "\\\\.\\pipe\\sync_trades_pipe";
@@ -347,6 +363,7 @@ bool isPrintAboutToRestart = false;
 
 Printer buysltpPrinter;
 Printer sellsltpPrinter;
+Printer debugPrinter = Printer(true);
 
 CDialog dialog;
 CListView lstPeerTicketsView;
@@ -373,8 +390,21 @@ CPanel panelBottom;
 
 CArrayLong *OpenTicketList = new CArrayLong; //any enlisted ticket that is not found by the positionObj is assumed to be closed
 
+
+string peerOpenPositions[];
+int CountEnsurePeerOrdersClosed = 0;
+int CountNotifyPeerOrdersOpen = 0;
+string PeerBroker;
+string PeerAccountNumber;
+
 //+------------------------------------------------------------------+
 void computeStoploss() {
+
+   
+   if(IsMarketClosed){
+      return;
+   }
+
    symbolObj.Name(Symbol());
 
    if(PositionsTotal() == 0) {
@@ -495,6 +525,10 @@ void computeStoploss() {
 
 void computeTakeProfit(){
 
+     if(IsMarketClosed){
+        return;
+     }
+      
      TradePacket trade;
      
      int total_positions   = PositionsTotal();
@@ -987,6 +1021,9 @@ string stoplossPacket(double stoploss) {
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit() {
+
+   debugPrinter.setDebugMode(DebugMode);
+
    HistoryFromTime = TimeCurrent();
    tradeObj.SetExpertMagicNumber(COPIED_TRADE_MAGIC_NUMBER);
    tradeObj.SetMarginMode();
@@ -1078,11 +1115,12 @@ int OnInit() {
       MessageBox("Failed to start EA becacuse "+SymbolForMarginReqirement+" price which is required internally could not be determined. Kindly ensure a chart of "+SymbolForMarginReqirement+" is currently loaded on the trading platform!", "FAILED", MB_ICONERROR);   
       return INIT_FAILED;         
    }
-      
+            
 
    return (INIT_SUCCEEDED);
 }
 
+     
 
   bool validateExchangeRateSymbol(){
            
@@ -1688,8 +1726,11 @@ void doRun() {
    resartTerminalOnConnectionLost();
 
    if(PositionsTotal() == 0) {
+      ensurePeerOrdersClosed();
       //initControlVariables(); //bug
    }
+   
+   notifyPeerOrdersOpen();//do this continuously
 
    double startTime = GetTickCount();
 
@@ -1795,6 +1836,154 @@ bool channelIfNot() {
 
 
    return true;
+}
+
+//+------------------------------------------------------------------+
+//| Function to read the content of a file                          |
+//| Reads the file line by line and prints to the log.              |
+//+------------------------------------------------------------------+
+string ReadFileContent(const string fileName)
+{
+   int handle;
+
+   // Open the file for reading
+   handle = FileOpen(fileName, FILE_READ | FILE_CSV, ";");
+
+   if (handle == INVALID_HANDLE)
+   {
+      Print("Error opening file: ", fileName, " | Error code: ", GetLastError());
+      return "";
+   }
+
+   
+   // Read file line by line
+   string content = "";
+   while (!FileIsEnding(handle))
+   {
+      string line = FileReadString(handle);
+      content+=line+"\n";
+   }
+
+   StringTrimRight(content);//remove the last new line character if any
+   // Close the file
+   FileClose(handle);
+   
+   return content;
+}
+
+
+//+------------------------------------------------------------------+
+//| Function to append a string to a file                           |
+//| The file is created in the Files directory of your terminal.    |
+//+------------------------------------------------------------------+
+void AppendStringToFile(const string fileName, const string textToAppend)
+{
+   int handle; 
+   
+   // Open the file for appending (FILE_WRITE | FILE_READ allows reading and writing)
+   handle = FileOpen(fileName, FILE_WRITE | FILE_READ | FILE_CSV, ";");
+   
+   if (handle == INVALID_HANDLE)
+   {
+      Print("Error opening file: ", fileName, " | Error code: ", GetLastError());
+      return;
+   }
+   
+   // Move the file pointer to the end of the file
+   FileSeek(handle, 0, SEEK_END);
+   
+   // Write the string followed by a newline
+   FileWrite(handle, textToAppend);
+   
+   // Close the file
+   FileClose(handle);
+   
+   Print("Successfully appended text to the file: ", fileName);
+}
+
+void knowMyPeer(string peer_broker, string peer_account_number){
+   PeerBroker = peer_broker;
+   PeerAccountNumber = peer_account_number;
+}
+
+void peerOpenPosition(ulong peer_ticket, int peer_total_orders_open, string peer_broker, string peer_account_number) {
+
+   if(peer_total_orders_open == 0){
+      ArrayResize(peerOpenPositions, 0);
+   }
+
+   string entry = peer_ticket + "_" + peer_total_orders_open + "_" + peer_broker + "_" + peer_account_number;
+
+   addSetItem(entry, peerOpenPositions);
+     
+}
+
+bool delayCall(int &count, int secs){
+   count++;
+   int num = secs * 5;
+         
+   return count % num == 0;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void ensurePeerOrdersClosed() {
+
+   
+   if(!delayCall(CountEnsurePeerOrdersClosed , 3)){
+      return;
+   }
+
+
+   int len = ArraySize(peerOpenPositions);
+   for(int i = 0; i < len; i++) {
+      string tokens [];
+      StringSplit(peerOpenPositions[i],'_',tokens);
+      string _peer_ticket = tokens[0];
+      int _peer_total_orders_open = StringToInteger(tokens[1]);
+      string _peer_broker = tokens[2];
+      string _peer_account_number = tokens[3];
+
+      if(_peer_total_orders_open > 0 && _peer_broker == PeerBroker && _peer_account_number== PeerAccountNumber) {
+            string data = "peer_ticket="+_peer_ticket+TAB
+                 +"no_open_position_so_close=true"+TAB;
+            sendData(data);
+      }
+
+   }   
+
+}
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void notifyPeerOrdersOpen() {
+
+   
+   if(!delayCall(CountNotifyPeerOrdersOpen , 3)){
+      return;
+   }
+
+   
+   int total = PositionsTotal();
+   if(total > 0){
+   
+      for(int i=0; i < total; i++){
+         if(positionObj.SelectByIndex(i)) {
+            string data = "peer_ticket="+positionObj.Ticket()+TAB
+                        +"peer_total_orders_open="+total+TAB
+                        +"notify_peer_open_postion=true"+TAB;
+            sendData(data);
+         }
+      }
+      
+   }else{
+       string data =  "peer_ticket=-1"+TAB// -1 means no ticket. used here for convenience
+                     +"peer_total_orders_open="+total+TAB
+                     +"notify_peer_open_postion=true"+TAB;
+       sendData(data);
+   }
+        
 }
 
 //+------------------------------------------------------------------+
@@ -2278,6 +2467,19 @@ void receivedLine(string line) {
       sendPacketClose(trade_packet_struct);
    }
 
+   if(trade_packet_struct.action == "close_by_ticket"){
+        sendPacketClose(trade_packet_struct); 
+   }
+   
+   
+   if(trade_packet_struct.action == "peer_open_position") {
+      peerOpenPosition(trade_packet_struct.peer_ticket, trade_packet_struct.peer_total_orders_open, trade_packet_struct.peer_broker, trade_packet_struct.peer_account_number);
+   }
+      
+   if(trade_packet_struct.action == "know_my_peer") {
+      knowMyPeer(trade_packet_struct.peer_broker, trade_packet_struct.peer_account_number);
+   }         
+   
    if(trade_packet_struct.action == "sync_modify_target") {
       sendPacketSyncModifyTarget(trade_packet_struct);
    }
@@ -2336,7 +2538,7 @@ void toReceivedTradePacket(string line, TradePacket &trade_packet_struct) {
 
 
    if(line != PING_PACKET) {
-      Print("RECEIVED: ",line);//TESTING!!!
+      debugPrinter.debug("RECEIVED: " + line);
    }
 
    initTradeStrct(trade_packet_struct);
@@ -2443,17 +2645,17 @@ void toReceivedTradePacket(string line, TradePacket &trade_packet_struct) {
          trade_packet_struct.peer_account_number = value;
       }
 
-
-
       if(name == "own_ticket") {
          trade_packet_struct.own_ticket = StringToInteger(value);
       }
 
-
       if(name == "peer_ticket") {
          trade_packet_struct.peer_ticket = StringToInteger(value);
       }
-
+      
+      if(name == "peer_total_orders_open") {
+         trade_packet_struct.peer_total_orders_open = StringToInteger(value);
+      }      
 
       if(name == "peer_stoploss") {
          trade_packet_struct.peer_stoploss = StringToDouble(value);
@@ -3366,38 +3568,59 @@ void addTicketOfSyncModify(ulong ticket) {
    addSetItem(ticket, ticketsOfSyncModify);
 }
 
-
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void addSetItem(ulong item, ulong &items []) {
+bool addSetItem(string item, string &items []) {
 
    bool isAlreadyAdded = contains(item, items);
 
    if(isAlreadyAdded) {
-      return;
+      return false;
    }
 
    int new_size = ArraySize(items) + 1;
    ArrayResize(items, new_size);
    items[new_size -1] = item;
+   
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+bool addSetItem(ulong item, ulong &items []) {
+
+   bool isAlreadyAdded = contains(item, items);
+
+   if(isAlreadyAdded) {
+      return false;
+   }
+
+   int new_size = ArraySize(items) + 1;
+   ArrayResize(items, new_size);
+   items[new_size -1] = item;
+   
+   return true;
 }
 
 
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
-void addSetItem(double item, double &items []) {
+bool addSetItem(double item, double &items []) {
 
    bool isAlreadyAdded = contains(item, items);
 
    if(isAlreadyAdded) {
-      return;
+      return false;
    }
 
    int new_size = ArraySize(items) + 1;
    ArrayResize(items, new_size);
    items[new_size -1] = item;
+   
+   return true;
 }
 
 
@@ -3442,7 +3665,19 @@ bool isTicketOfSyncClose(ulong ticket) {
 bool isTicketOfSyncModify(ulong ticket) {
    return contains(ticket, ticketsOfSyncModify);
 }
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+bool contains(string item, string &items []) {
+   int size = ArraySize(items);
 
+   for(int i=0; i < size; i++) {
+      if(items[i] == item) {
+         return true;
+      }
+   }
+   return false;
+}
 //+------------------------------------------------------------------+
 //|                                                                  |
 //+------------------------------------------------------------------+
@@ -3788,7 +4023,9 @@ string closeSuccessPacket(bool success, TradePacket &trade, string error="") {
       packet += "force="+trade.force+TAB
                 +"reason="+trade.reason+TAB
                 +"own_close_success="+success+TAB;
-   }
+   }else if(trade.action == "close_by_ticket"){
+      packet += "close_by_ticket_success="+success+TAB;  
+   }  
 
    return packet;
 }
@@ -4900,6 +5137,10 @@ void validateConnection() {
 //+------------------------------------------------------------------+
 void sendData(string data) {
 
+  /* if(!IsSocketConnected()){   
+      return;
+   }*/
+   
    if(data == "") {
       return;
    }

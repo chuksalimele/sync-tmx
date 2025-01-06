@@ -519,6 +519,28 @@ class SyncUtil {
             + `spread_point=` + spread_point + Constants_1.Constants.TAB
             + `action=sync_close`;
     }
+    static KnowMyPeerPacket(peer_broker, peer_account_number) {
+        return `peer_broker=` + peer_broker + Constants_1.Constants.TAB
+            + `peer_account_number=` + peer_account_number + Constants_1.Constants.TAB
+            + `action=know_my_peer`;
+    }
+    static RegisterPeerTicketPacket(ticket, broker, account_number) {
+        return `peer_ticket=` + ticket + Constants_1.Constants.TAB
+            + `peer_broker=` + broker + Constants_1.Constants.TAB
+            + `peer_account_number=` + account_number + Constants_1.Constants.TAB
+            + `action=register_peer_ticket`;
+    }
+    static CloseByTicketPacket(ticket) {
+        return `ticket=` + ticket + Constants_1.Constants.TAB
+            + `action=close_by_ticket`;
+    }
+    static NotifyPeerOpenPositionPacket(peer_ticket, peer_total_orders_open, peer_broker, peer_account_number) {
+        return `peer_ticket=` + peer_ticket + Constants_1.Constants.TAB
+            + `peer_total_orders_open=` + peer_total_orders_open + Constants_1.Constants.TAB
+            + `peer_broker=` + peer_broker + Constants_1.Constants.TAB
+            + `peer_account_number=` + peer_account_number + Constants_1.Constants.TAB
+            + `action=peer_open_position`;
+    }
     static OwnClosePacket(ticket, spread_point, force, reason = '') {
         return `ticket=` + ticket + Constants_1.Constants.TAB // the ticket to be closed
             + `spread_point=` + spread_point + Constants_1.Constants.TAB

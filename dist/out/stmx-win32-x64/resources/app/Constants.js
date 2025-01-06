@@ -33,6 +33,7 @@ Constants.CMD_SHUTDOWN_TERMINAL_FOR_RESTART = "shutdown_terminal_for_restart";
 Constants.CMD_RE_ESTABLISHED_PAIRING = "re_established_pairing";
 Constants.CMD_RE_STARTED_TERMINAL = "re_started_terminal";
 Constants.CMD_PEER_TERMINAL_TO_RESTART = "peer_terminal_to_restart";
+Constants.CMD_PEER_TERMINAL_TO_RESTART_CONFIRM = "peer_terminal_to_restart_confirm";
 Constants.CMD_REPORT_PEER_TERMINAL_TO_RESTART_FAILED = "report_peer_terminal_to_restart_failed";
 Constants.TRADE_PROPERTIES = "trade_properties";
 //# sourceMappingURL=Constants.js.map

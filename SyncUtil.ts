@@ -668,7 +668,33 @@ export class SyncUtil {
             + `spread_point=` + spread_point + Constants.TAB
             + `action=sync_close`;
     }
+    
+    public static KnowMyPeerPacket(peer_broker: string, peer_account_number: string): string {
+        return `peer_broker=` + peer_broker + Constants.TAB
+            +`peer_account_number=` + peer_account_number + Constants.TAB
+            + `action=know_my_peer`;
+    }
+    public static RegisterPeerTicketPacket(ticket: number, broker: string, account_number: string): string {
+        return `peer_ticket=` + ticket + Constants.TAB
+            +`peer_broker=` + broker + Constants.TAB
+            +`peer_account_number=` + account_number + Constants.TAB
+            + `action=register_peer_ticket`;
+    }
 
+    public static CloseByTicketPacket(ticket: number): string {
+        return `ticket=` + ticket + Constants.TAB
+            + `action=close_by_ticket`;
+    }
+
+    public static NotifyPeerOpenPositionPacket(peer_ticket: number, peer_total_orders_open: number, peer_broker:string, peer_account_number:string): string {
+        return `peer_ticket=` + peer_ticket + Constants.TAB
+            +`peer_total_orders_open=` + peer_total_orders_open + Constants.TAB
+            +`peer_broker=` + peer_broker + Constants.TAB
+            +`peer_account_number=` + peer_account_number + Constants.TAB
+            + `action=peer_open_position`;
+    }
+
+    
     public static OwnClosePacket(ticket: number, spread_point: number, force: boolean, reason: string = ''): string {
         return `ticket=` + ticket + Constants.TAB // the ticket to be closed
              + `spread_point=` + spread_point + Constants.TAB

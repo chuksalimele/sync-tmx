@@ -4,7 +4,7 @@ var os = require('os');
 var path = require('path');
 
 export class Config {
-    public static readonly VERSION: string = '13.0.0';
+    public static readonly VERSION: string = '15.0.0';
     static readonly APP_HOME_DIRECTORY: string = `${os.homedir()}/.stmx`;
     public static readonly HOST: string = "localhost";
     public static readonly PORT: string = "4000";

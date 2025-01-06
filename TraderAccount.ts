@@ -1173,6 +1173,22 @@ export class TraderAccount {
         });
     }
 
+    public KnowMyPeer(){
+        this.SendData(SyncUtil.KnowMyPeerPacket(this.peer?.broker, this.peer?.account_number));
+    }
+
+    public RegisterPeerTicket(peer_ticket: number){        
+        this.peer?.SendData(SyncUtil.RegisterPeerTicketPacket(peer_ticket, this.broker, this.account_number));
+    }
+
+    public ClosePeerByTicket(peer_ticket: number){        
+        this.peer?.SendData(SyncUtil.CloseByTicketPacket(peer_ticket));
+    }
+
+    public NotifyPeerOpenPosition(peer_ticket: number, peer_total_orders_open: number){                   
+        this.peer?.SendData(SyncUtil.NotifyPeerOpenPositionPacket(peer_ticket, peer_total_orders_open, this.broker, this.account_number));        
+    }    
+
     private DoSendClose(own_order: Order, peer_order: Order) {
 
         //mark as sync closing to avoid duplicate operation

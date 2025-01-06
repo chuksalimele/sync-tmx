@@ -622,6 +622,11 @@ class SyncService {
         console.log("DEBUG e");
         return true;
     }
+    LetAccountsKnowTheirPeer(account) {
+        var _a;
+        account.KnowMyPeer();
+        (_a = account.Peer()) === null || _a === void 0 ? void 0 : _a.KnowMyPeer();
+    }
     PairTraderAccountWith(traderAccount, peerAccount, is_gui = false) {
         if (!this.checkNoConflictWithRetainedForReassign(traderAccount, peerAccount)) {
             if (is_gui) {
@@ -751,6 +756,8 @@ class SyncService {
             otherAccount.CreateAndAtachSyncStatePairID();
             traderAccount.SendPeerSymbolDigits();
             otherAccount.SendPeerSymbolDigits();
+            //finally
+            this.LetAccountsKnowTheirPeer(traderAccount);
             return true;
         }
         return false;
@@ -1257,7 +1264,7 @@ class SyncService {
         this.SendModifyToPeer(account);
     }
     HandleRead(account, data) {
-        var _a;
+        var _a, _b;
         if (data == null || data.length == 0)
             return;
         if (data != "ping=pong") {
@@ -1275,6 +1282,9 @@ class SyncService {
         let is_peer_take_profit_param = false;
         let is_close_trades = false;
         let is_account_balance_changed = false;
+        let peer_total_orders_open = 0;
+        let is_no_open_position_so_close = false;
+        let is_notify_peer_open_postion = false;
         let place_order_success = null; // yes must be null since we care about three state: null, true or false
         let copy_success = null; // yes must be null since we care about three state: null, true or false
         let own_close_success = null; // yes must be null since we care about three state: null, true or false
@@ -1585,6 +1595,7 @@ class SyncService {
                 order.open_time = Number.parseInt(value);
                 if (!was_open && order.open_time > 0) {
                     //just opened
+                    account.RegisterPeerTicket(order.ticket);
                     this.emailer.OrderOpenNotify(account, order);
                 }
             }
@@ -1676,6 +1687,15 @@ class SyncService {
             if (name == "account_commission_cost") {
                 account.SetAccountCommissionCost(parseFloat(value));
             }
+            if (name = "peer_total_orders_open") {
+                peer_total_orders_open = parseInt(value);
+            }
+            if (name = "no_open_position_so_close") {
+                is_no_open_position_so_close = true;
+            }
+            if (name = "notify_peer_open_postion") {
+                is_notify_peer_open_postion = true;
+            }
             if (name == "data_for_sync_state_pair_id") {
                 var ticke_arr = value ? value.split(",") : []; //avoid empty entry - one element of array with empty string
                 account.SetOpenTickets(ticke_arr);
@@ -1689,7 +1709,21 @@ class SyncService {
                 account.SetLastError(error);
             }
             if (name == "will_restart_due_to_connection_lost") {
-                this.signalShutdownMTTerminalForRestart(account, value);
+                var prop = {
+                    peer_broker: account.Broker(),
+                    peer_account_number: account.AccountNumber(),
+                };
+                (_b = account.Peer()) === null || _b === void 0 ? void 0 : _b.sendEACommand(Constants_1.Constants.CMD_PEER_TERMINAL_TO_RESTART_CONFIRM, prop);
+                main_1.default.confirm({
+                    title: 'ATTENTION NEEDED',
+                    message: "<p>" + account.Broker() + " - " + account.AccountNumber() + " appears to have lost connection</p>. <p>Do you want to restart the terminal?</p>",
+                    yes: ((acct, val) => {
+                        this.signalShutdownMTTerminalForRestart(acct, val);
+                    }).bind(this, account, value),
+                    no: () => {
+                        //do nothing - just close confirm dialog box
+                    }
+                });
             }
         }
         if (intro) {
@@ -1743,6 +1777,12 @@ class SyncService {
         }
         if (fire_market_opened) {
             main_2.ipcSend("market-open", account.CopyAttr());
+        }
+        if (is_no_open_position_so_close && peer_ticket) {
+            account.ClosePeerByTicket(parseInt(peer_ticket));
+        }
+        if (is_notify_peer_open_postion) {
+            account.NotifyPeerOpenPosition(parseInt(peer_ticket), peer_total_orders_open);
         }
         if (is_new_trade_entries) {
             this.SendCopyToPeer(account);

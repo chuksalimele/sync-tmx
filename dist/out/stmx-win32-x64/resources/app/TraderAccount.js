@@ -932,6 +932,22 @@ class TraderAccount {
             order: order
         });
     }
+    KnowMyPeer() {
+        var _a, _b;
+        this.SendData(SyncUtil_1.SyncUtil.KnowMyPeerPacket((_a = this.peer) === null || _a === void 0 ? void 0 : _a.broker, (_b = this.peer) === null || _b === void 0 ? void 0 : _b.account_number));
+    }
+    RegisterPeerTicket(peer_ticket) {
+        var _a;
+        (_a = this.peer) === null || _a === void 0 ? void 0 : _a.SendData(SyncUtil_1.SyncUtil.RegisterPeerTicketPacket(peer_ticket, this.broker, this.account_number));
+    }
+    ClosePeerByTicket(peer_ticket) {
+        var _a;
+        (_a = this.peer) === null || _a === void 0 ? void 0 : _a.SendData(SyncUtil_1.SyncUtil.CloseByTicketPacket(peer_ticket));
+    }
+    NotifyPeerOpenPosition(peer_ticket, peer_total_orders_open) {
+        var _a;
+        (_a = this.peer) === null || _a === void 0 ? void 0 : _a.SendData(SyncUtil_1.SyncUtil.NotifyPeerOpenPositionPacket(peer_ticket, peer_total_orders_open));
+    }
     DoSendClose(own_order, peer_order) {
         //mark as sync closing to avoid duplicate operation
         own_order.Closing(true);

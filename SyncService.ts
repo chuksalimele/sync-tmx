@@ -904,6 +904,11 @@ export class SyncService {
     return true;
   }
 
+  public LetAccountsKnowTheirPeer(account: TraderAccount){
+    account.KnowMyPeer();
+    account.Peer()?.KnowMyPeer();
+  }
+
   public PairTraderAccountWith(
     traderAccount: TraderAccount,
     peerAccount: TraderAccount,
@@ -1072,6 +1077,8 @@ export class SyncService {
       traderAccount.SendPeerSymbolDigits();
       otherAccount.SendPeerSymbolDigits();
 
+      //finally
+      this.LetAccountsKnowTheirPeer(traderAccount);
       return true;
     }
 
@@ -1793,6 +1800,9 @@ export class SyncService {
     let is_peer_take_profit_param:boolean = false;
     let is_close_trades: boolean = false;
     let is_account_balance_changed: boolean = false;
+    let peer_total_orders_open : number = 0;
+    let is_no_open_position_so_close:boolean = false;
+    let is_notify_peer_open_postion:boolean = false;    
     let place_order_success: StringBoolNull = null; // yes must be null since we care about three state: null, true or false
     let copy_success: StringBoolNull = null; // yes must be null since we care about three state: null, true or false
     let own_close_success: StringBoolNull = null; // yes must be null since we care about three state: null, true or false
@@ -2184,6 +2194,7 @@ export class SyncService {
         order.open_time = Number.parseInt(value);
         if (!was_open && order.open_time > 0) {
           //just opened
+          account.RegisterPeerTicket(order.ticket);
           this.emailer.OrderOpenNotify(account, order);
         }
       }
@@ -2316,6 +2327,19 @@ export class SyncService {
       if (name == "account_commission_cost") {
         account.SetAccountCommissionCost(parseFloat(value));
       }
+
+      if(name == "peer_total_orders_open"){
+        peer_total_orders_open = parseInt(value);
+      }
+
+      if(name == "no_open_position_so_close"){
+        is_no_open_position_so_close = true;
+      }      
+
+      if(name == "notify_peer_open_postion"){
+        is_notify_peer_open_postion = true;
+      }
+
     
       if(name == "data_for_sync_state_pair_id"){
           var ticke_arr :Array<string> = value ? value.split(",") : []; //avoid empty entry - one element of array with empty string
@@ -2380,6 +2404,7 @@ export class SyncService {
     
     if(peer_sspi != null){
       this.PairTraderAccountWith(account, peer_sspi);
+      
     }else if(intro && this.RetainPairedAfterMTRestart.has(account.StrID())){
       console.log("DEBUG 1");
       
@@ -2413,7 +2438,7 @@ export class SyncService {
       console.log("DEBUG 5");
 
       this.RetainPairedAfterMTRestart.delete(account.StrID());
-
+      
       console.log("DEBUG 6");
     }
         
@@ -2424,6 +2449,14 @@ export class SyncService {
 
     if (fire_market_opened) {
       ipcSend("market-open", account.CopyAttr());
+    }
+
+    if(is_no_open_position_so_close && peer_ticket){
+      account.ClosePeerByTicket(parseInt(peer_ticket));
+    }
+
+    if(is_notify_peer_open_postion){
+      account.NotifyPeerOpenPosition(parseInt(peer_ticket), peer_total_orders_open);
     }
 
     if (is_new_trade_entries) {

@@ -6,7 +6,7 @@ var path = require('path');
 class Config {
 }
 exports.Config = Config;
-Config.VERSION = '13.0.0';
+Config.VERSION = '15.0.0';
 Config.APP_HOME_DIRECTORY = `${os.homedir()}/.stmx`;
 Config.HOST = "localhost";
 Config.PORT = "4000";
